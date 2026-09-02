@@ -1,0 +1,13 @@
+# 提醒事项配置
+# schedule: daily          每次推送都携带
+# schedule: weekly + days  指定星期几携带（mon..sun，按北京时间判定）
+# editions: 可选，[morning] / [evening]；缺省表示早晚两次都携带
+
+reminders:
+  - text: "10:00 产品站会"
+    schedule: daily
+
+  - text: "记得提交本周周报"
+    schedule: weekly
+    days: [fri]
+    editions: [morning]

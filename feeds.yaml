@@ -1,0 +1,27 @@
+# RSS 订阅源配置
+# 结构：分组 → 源列表。每个源必须有 name 和 url。
+# 抓取失败的源不会中断整体，会在日报中标注。
+# 可按需增删源或分组；保存后下次推送即生效。
+
+groups:
+  - name: 海外官方
+    feeds:
+      - name: OpenAI Blog
+        url: https://openai.com/blog/rss.xml
+      - name: Google AI Blog
+        url: https://blog.google/technology/ai/rss/
+      - name: Hugging Face Blog
+        url: https://huggingface.co/blog/feed.xml
+
+  - name: 海外媒体
+    feeds:
+      - name: TechCrunch AI
+        url: https://techcrunch.com/category/artificial-intelligence/feed/
+      - name: The Verge AI
+        url: https://www.theverge.com/rss/ai-artificial-intelligence/index.xml
+
+  # 中文社区示例（很多中文媒体无 RSS，可借助 RSSHub 桥接后填入）
+  # - name: 中文社区
+  #   feeds:
+  #     - name: 机器之心
+  #       url: https://rsshub.app/jiqizhixin/category/article
