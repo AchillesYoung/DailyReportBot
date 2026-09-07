@@ -29,9 +29,14 @@ echo "==> 部署 systemd 服务"
 sudo cp deploy/systemd/*.service /etc/systemd/system/
 sudo cp deploy/systemd/*.timer /etc/systemd/system/
 
-echo "==> 重载并启动定时器"
+echo "==> 重载并重启定时器"
 sudo systemctl daemon-reload
-sudo systemctl enable --now \
+sudo systemctl enable \
+    dailybot-morning.timer \
+    dailybot-evening.timer \
+    dailybot-aihot.timer \
+    dailybot-telegram.timer
+sudo systemctl restart \
     dailybot-morning.timer \
     dailybot-evening.timer \
     dailybot-aihot.timer \
