@@ -1,11 +1,14 @@
 # Design: AI 行业资讯钉钉自动化日报系统
 
+> **注**: 定时调度已从 GitHub Actions 迁移到 VPS systemd timer（见 `deploy/systemd/`）。
+> 早报 09:00 / 晚报 20:00 北京时间，Telegram 转发每小时。
+
 ## Context
 
 全新仓库，无既有代码。约束来自 proposal 与 specs：
 
 - 忠实聚合器：无 LLM 依赖，每条资讯仅标题 + 链接。
-- 无状态：GitHub Actions 容器一次性，跨推送去重仅依赖时间窗口。
+- 无状态：VPS systemd timer 定时触发，跨推送去重仅依赖时间窗口。
 - 单源失败容忍，推送失败必须显式可见。
 - 每日两推（北京 09:00 / 20:00），窗口分别约 13h / 11h，合计覆盖 24h。
 - 钉钉 Markdown 是受限子集（不支持表格；链接/加粗/标题/列表/分割线可用），且有消息长度上限。

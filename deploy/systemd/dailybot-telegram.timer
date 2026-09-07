@@ -6,7 +6,7 @@ OnCalendar=*-*-* *:00:00
 Persistent=true
 AccuracySec=1min
 RandomizedDelaySec=0
-Unit=dailybot-forwarder.service
+Unit=dailybot-telegram.service
 
 [Install]
 WantedBy=timers.target

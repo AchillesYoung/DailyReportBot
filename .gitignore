@@ -7,5 +7,9 @@ __pycache__/
 # OS
 .DS_Store
 
-# Env / secrets
-.env
+# Runtime
+state.json
+
+# Tools
+.mimocode/
+.opencode/

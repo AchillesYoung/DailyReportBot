@@ -11,19 +11,68 @@ from typing import List
 from .telegram_models import ChannelPost
 
 
+_COMPANY_NAMES = (
+    "OpenAI", "Anthropic", "Google", "GoogleDeepMind", "DeepMind",
+    "Microsoft", "Apple", "NVIDIA", "Meta", "Amazon", "Tesla", "AMD",
+    "Qualcomm", "Samsung", "Broadcom", "TSMC", "CrowdStrike", "Palantir",
+    "Robinhood", "Globant", "Cerebras", "SoundHound", "LivePerson",
+    "Salesforce", "Hugging Face", "SpaceX", "Intel", "IBM", "Oracle",
+    "Bloomberg", "Reuters", "TechCrunch", "WIRED", "Seeking Alpha",
+    "SemiAnalysis", "Yahoo", "雪球", "IT之家", "虎嗅",
+    "NHTSA", "SEC",
+)
+
+
+def _highlight_entities(text: str) -> str:
+    """用 **加粗** 标记股票代码（$TICKER）和公司/媒体名称。"""
+    # 股票代码：$AAPL、$NVDA 等
+    text = re.sub(
+        r"\$([A-Z]{2,5})(?=[^A-Za-z]|$)",
+        r"$\1**",
+        text,
+    )
+    # 补全开头的 **：上面把 $AAPL 变成了 $AAPL**，需要在 $ 前加 **
+    text = re.sub(
+        r"(?<!\*)\$([A-Z]{2,5})\*\*",
+        r"**$\1**",
+        text,
+    )
+
+    # 公司/媒体名称：按长度降序匹配，避免短名误匹配
+    for name in sorted(_COMPANY_NAMES, key=len, reverse=True):
+        pattern = re.escape(name)
+        text = re.sub(rf"(?<!\*){pattern}(?!\*)", rf"**{name}**", text)
+
+    return text
+
+
 def _escape_markdown(text: str) -> str:
-    escaped = text.replace("\\", "\\\\")
-    for character in ("*", "_", "[", "]", "`"):
-        escaped = escaped.replace(character, f"\\{character}")
-    return escaped
+    """转义 Markdown 特殊字符，但保留 **加粗** 标记。"""
+    # 按 ** 分段，奇数段是加粗内容，不转义 *
+    parts = text.split("**")
+    escaped_parts = []
+    for i, part in enumerate(parts):
+        part = part.replace("\\", "\\\\")
+        if i % 2 == 0:
+            # 普通文本：转义 *
+            for character in ("*", "_", "[", "]", "`"):
+                part = part.replace(character, f"\\{character}")
+        else:
+            # 加粗内容：不转义 *
+            for character in ("_", "[", "]", "`"):
+                part = part.replace(character, f"\\{character}")
+        escaped_parts.append(part)
+    return "**".join(escaped_parts)
 
 
 def _is_section_break(line: str) -> bool:
     return (
         line.startswith("● ")
+        or line.startswith("• ")
         or line.startswith("—")
         or (line.startswith("【") and line.endswith("】"))
         or re.match(r"^\d+\.\s", line) is not None
+        or re.match(r"^[🚀📰🌐↗]", line) is not None
     )
 
 
@@ -40,6 +89,10 @@ def _format_report_text(text: str) -> str:
         if formatted and formatted[-1] != "" and _is_section_break(line):
             formatted.append("")
         formatted.append(line)
+
+        if re.match(r"^[─—\-=]{4,}$", line):
+            formatted.append("")
+            formatted.append("")
 
     while formatted and formatted[-1] == "":
         formatted.pop()
@@ -78,7 +131,7 @@ def build_markdown_parts(
     如果实际 header 更宽（页数位数增加），用真实宽度重分一次。
     """
     suffix = f"\n\n[查看 Telegram 原文]({post.url})"
-    escaped = _escape_markdown(_format_report_text(post.text))
+    escaped = _escape_markdown(_highlight_entities(_format_report_text(post.text)))
 
     # 第一遍：用最坏估计的 header 宽度分页（假设页数 ≤ 4 位）
     worst_header = f"{header}（9999/9999）\n\n"

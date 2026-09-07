@@ -8,6 +8,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, List
 
+from dotenv import load_dotenv
+
+load_dotenv(Path(__file__).resolve().parent.parent / "config" / "dingtalk.env")
+
 from . import dingtalk
 from .config import DingTalkCredentials, get_dingtalk_credentials
 from .telegram_channel import parse_posts

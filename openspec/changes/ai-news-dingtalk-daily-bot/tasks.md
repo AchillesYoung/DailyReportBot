@@ -39,11 +39,11 @@
 - [ ] 6.2 组装全流程；失败语义按 design D8 实现退出码
 - [ ] 6.3 本地 `--dry-run` 验证：打印完整 markdown 不推送
 
-## 7. GitHub Actions（spec: scheduled-orchestration）
+## 7. 定时调度（VPS systemd timer）~~原 GitHub Actions~~
 
-- [ ] 7.1 `.github/workflows/daily-report.yml`：两个 cron（UTC 01:00 / 12:00）+ `workflow_dispatch`（edition 输入）
-- [ ] 7.2 workflow：Python 环境、`pip install -r requirements.txt`、Secrets 注入环境变量、按触发来源设置 edition 参数
-- [ ] 7.3 README：Secrets 配置说明（`DINGTALK_WEBHOOK_URL`、可选 `DINGTALK_SECRET`）、手动触发与本地运行方法
+- [x] 7.1 `deploy/systemd/`：dailybot-morning.timer（09:00）、dailybot-evening.timer（20:00）、dailybot-telegram.timer（每小时）
+- [x] 7.2 systemd service 配置：环境变量文件 `/etc/dailybot.env`、Python venv 路径
+- [x] 7.3 README：VPS 部署说明（systemd timer 启用、环境变量配置、日志查看）
 
 ## 8. 验证与交付
 

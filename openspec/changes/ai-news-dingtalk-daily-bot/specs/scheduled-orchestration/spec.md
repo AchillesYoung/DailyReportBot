@@ -1,17 +1,19 @@
 ## Purpose
 
-通过 GitHub Actions 每日两次定时触发完整流程（抓取 → 组装 → 推送），以不同时段参数区分早报与晚报，并提供手动触发手段。
+通过 VPS systemd timer 每日两次定时触发完整流程（抓取 → 组装 → 推送），以不同时段参数区分早报与晚报，并提供手动触发手段。
+
+> **注**: 原设计为 GitHub Actions，已迁移到 VPS systemd timer（见 `deploy/systemd/`）。
 
 ## ADDED Requirements
 
 ### Requirement: 定时触发
 
-系统 SHALL 通过 GitHub Actions 定时工作流每日触发两次：北京时间 09:00（早报）与北京时间 20:00（晚报），cron 表达式按 UTC 换算。系统 MUST 接受 GitHub 定时任务可能存在的分钟级延迟漂移，不保证准点。
+系统 SHALL 通过 VPS systemd timer 每日触发两次：北京时间 09:00（早报）与北京时间 20:00（晚报）。VPS 系统时钟 MUST 设置为 Asia/Shanghai。
 
 #### Scenario: 定时触发
 
-- **WHEN** GitHub Actions 到达配置的 cron 时间
-- **THEN** 对应的工作流被触发，并携带正确的推送类型参数（早报或晚报）
+- **WHEN** systemd timer 到达配置的时间
+- **THEN** 对应的 service 被触发，并携带正确的推送类型参数（早报或晚报）
 
 ### Requirement: 时段参数化
 
@@ -29,18 +31,18 @@
 
 ### Requirement: 手动触发
 
-工作流 SHALL 支持 `workflow_dispatch` 手动触发，且 MUST 允许手动选择推送类型（早报/晚报）以便调试与补发。
+系统 SHALL 支持 CLI 手动触发，且 MUST 允许手动选择推送类型（早报/晚报）以便调试与补发。
 
 #### Scenario: 手动补发早报
 
-- **WHEN** 用户在 GitHub 页面手动触发工作流并选择"早报"
-- **THEN** 系统按早报参数执行完整流程并推送
+- **WHEN** 用户在 VPS 上运行 `python -m dailybot --edition morning --dry-run`
+- **THEN** 系统按早报参数执行完整流程并打印结果（dry-run 模式不推送）
 
 ### Requirement: 依赖与机密管理
 
-工作流 SHALL 在运行时安装 Python 依赖并从 GitHub Secrets 注入钉钉 webhook 配置。依赖 MUST 通过锁定的依赖清单安装（如 `requirements.txt`），保证可复现。
+系统 SHALL 从环境变量读取钉钉 webhook 配置。依赖 MUST 通过锁定的依赖清单安装（如 `requirements.txt`），保证可复现。
 
-#### Scenario: Secret 注入
+#### Scenario: 环境变量注入
 
-- **WHEN** 工作流运行
-- **THEN** webhook URL 等机密从 Secrets 注入环境变量，不出现在日志明文（GitHub 自动遮蔽）且代码不打印其值
+- **WHEN** systemd service 运行
+- **THEN** webhook URL 等机密从 `/etc/dailybot.env` 读取，代码不打印其值

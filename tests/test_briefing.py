@@ -103,3 +103,38 @@ def test_only_dingtalk_markdown_subset():
     assert "|" not in text          # 无表格
     assert "```" not in text        # 无代码块
     assert "<" not in text          # 无 HTML
+
+
+def test_summary_with_source_link_rendered():
+    entry = Entry(
+        title="AIHOT条目",
+        link="https://aihot.virxact.com/items/abc",
+        published=NOW - timedelta(hours=1),
+        summary="这是一段摘要内容，描述了某个AI新闻的关键信息",
+        source_link="https://mp.weixin.qq.com/s/xyz",
+    )
+    result = _result([("AIHOT", [entry])])
+    text = briefing.render(result, [], "morning", NOW)
+    assert "这是一段摘要内容" in text
+    assert "[阅读全文](https://mp.weixin.qq.com/s/xyz)" in text
+
+
+def test_summary_without_source_link():
+    entry = Entry(
+        title="条目",
+        link="https://example.com/1",
+        published=NOW - timedelta(hours=1),
+        summary="摘要文字",
+        source_link="",
+    )
+    result = _result([("源", [entry])])
+    text = briefing.render(result, [], "morning", NOW)
+    assert "摘要文字" in text
+    assert "阅读全文" not in text
+
+
+def test_empty_summary_no_extra_output():
+    entry = _entry(1)
+    result = _result([("源", [entry])])
+    text = briefing.render(result, [], "morning", NOW)
+    assert text.count("\n") < 10  # 紧凑输出，无多余行

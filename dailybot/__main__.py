@@ -8,6 +8,10 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
+from dotenv import load_dotenv
+
+load_dotenv(Path(__file__).resolve().parent.parent / "config" / "dingtalk.env")
+
 from . import briefing, collector, reminders
 from . import dingtalk
 from .config import get_dingtalk_credentials
@@ -33,9 +37,15 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="覆盖默认时间窗口（小时）；默认早报 13h / 晚报 11h",
     )
-    parser.add_argument("--feeds", default="feeds.yaml", help="RSS 源配置文件路径")
+    parser.add_argument("--feeds", default="config/feeds.yaml", help="RSS 源配置文件路径")
     parser.add_argument(
-        "--reminders", default="reminders.yaml", help="提醒规则配置文件路径"
+        "--group",
+        action="append",
+        default=None,
+        help="只推送指定分组（可多次指定）；缺省推送全部",
+    )
+    parser.add_argument(
+        "--reminders", default="config/reminders.yaml", help="提醒规则配置文件路径"
     )
     parser.add_argument(
         "--dry-run",
@@ -65,14 +75,22 @@ def main(argv: list[str] | None = None) -> int:
         print(f"配置加载失败: {exc}", file=sys.stderr)
         return 2
 
-    # 2. 抓取（单源失败容忍；全部失败也继续推送"暂无新资讯"）
+    # 2. 按分组过滤
+    if args.group:
+        selected = set(args.group)
+        feed_configs = [g for g in feed_configs if g.name in selected]
+        if not feed_configs:
+            print(f"未找到分组: {', '.join(selected)}", file=sys.stderr)
+            return 2
+
+    # 3. 抓取（单源失败容忍；全部失败也继续推送"暂无新资讯"）
     result = collector.collect(feed_configs, since_hours, now=now)
 
-    # 3. 提醒
-    due = reminders.due_today(reminder_rules, now, args.edition)
+    # 3. 提醒（暂时禁用）
+    # due = reminders.due_today(reminder_rules, now, args.edition)
 
     # 4. 排版
-    text = briefing.render(result, due, args.edition, now)
+    text = briefing.render(result, [], args.edition, now)
 
     if args.dry_run:
         print(text)

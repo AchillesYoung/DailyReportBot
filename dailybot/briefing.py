@@ -14,11 +14,21 @@ DEFAULT_MAX_TOTAL_ENTRIES = 15
 DEFAULT_MAX_TEXT_CHARS = 12000
 
 _EDITION_LABELS = {"morning": "早报", "evening": "晚报"}
+_MAX_SUMMARY_LEN = 80
 
 
 def _entry_line(entry: Entry) -> str:
     title = html.unescape(entry.title)
-    return f"- [{title}]({entry.link})"
+    line = f"- [{title}]({entry.link})"
+    if entry.summary:
+        s = entry.summary[:_MAX_SUMMARY_LEN]
+        if len(entry.summary) > _MAX_SUMMARY_LEN:
+            s += "..."
+        if entry.source_link:
+            line += f"\n  {s} [阅读全文]({entry.source_link})"
+        else:
+            line += f"\n  {s}"
+    return line
 
 
 def _render_body(result: CollectResult, entries_budget: int) -> tuple[list[str], int]:
@@ -119,7 +129,10 @@ def render(
         ]
         removed = 0
         for i in reversed(entry_indices):
+            # 移除条目行及其下方的摘要行（缩进行）
             body_lines[i] = ""
+            if i + 1 < len(body_lines) and body_lines[i + 1].startswith("  "):
+                body_lines[i + 1] = ""
             removed += 1
             omitted += 1
             text = assemble([l for l in body_lines if l != ""], omitted)

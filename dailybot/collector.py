@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import html as html_mod
 import logging
+import re
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -27,6 +29,7 @@ class FeedConfig:
 
     name: str
     url: str
+    show_summary: bool = False
 
 
 @dataclass
@@ -44,6 +47,8 @@ class Entry:
     title: str
     link: str
     published: datetime | None  # UTC；无时间戳时为 None
+    summary: str = ""
+    source_link: str = ""
 
 
 @dataclass
@@ -95,7 +100,7 @@ def load_feed_configs(path: str | Path) -> list[GroupConfig]:
             if not name or not url:
                 logger.warning("跳过非法源（缺少 name 或 url）: %r", raw_feed)
                 continue
-            group.feeds.append(FeedConfig(name=name, url=url))
+            group.feeds.append(FeedConfig(name=name, url=url, show_summary=bool(raw_feed.get("show_summary", False))))
         groups.append(group)
     return groups
 
@@ -109,6 +114,24 @@ def _parse_published(entry: feedparser.FeedParserDict) -> datetime | None:
         return datetime(*parsed[:6], tzinfo=timezone.utc)
     except (TypeError, ValueError):
         return None
+
+
+def _parse_summary(raw_html: str) -> tuple[str, str]:
+    """从 RSS description HTML 中提取摘要文本和原文链接。
+
+    返回 (summary_text, source_link)。
+    AIHOT 格式：第 1 段=摘要，第 2 段=阅读原文链接，第 3 段=via AIHOT。
+    """
+    paragraphs = re.findall(r"<p>(.*?)</p>", raw_html, re.DOTALL)
+    summary = ""
+    source_link = ""
+    if paragraphs:
+        summary = re.sub(r"<[^>]+>", "", paragraphs[0]).strip()
+    if len(paragraphs) >= 2:
+        match = re.search(r'href="([^"]+)"', paragraphs[1])
+        if match:
+            source_link = html_mod.unescape(match.group(1))
+    return summary, source_link
 
 
 def fetch_feed(
@@ -142,7 +165,10 @@ def fetch_feed(
         # 无时间戳的条目保守保留（宁重复勿漏）
         if published is not None and published < since:
             continue
-        entries.append(Entry(title=title, link=link, published=published))
+        summary, source_link = "", ""
+        if feed.show_summary:
+            summary, source_link = _parse_summary(item.get("summary") or "")
+        entries.append(Entry(title=title, link=link, published=published, summary=summary, source_link=source_link))
 
     # 从新到旧排序（无时间戳的排最后），再按上限截断
     entries.sort(
