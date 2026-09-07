@@ -6,7 +6,8 @@ Wants=network-online.target
 [Service]
 Type=oneshot
 WorkingDirectory=/opt/dailybot
-EnvironmentFile=/opt/dailybot/.env
+EnvironmentFile=-/etc/telegram-dingtalk-forwarder.env
+EnvironmentFile=-/opt/dailybot/.env
 ExecStart=/opt/dailybot/.venv/bin/python -m dailybot.forwarder
 StandardOutput=journal
 StandardError=journal
