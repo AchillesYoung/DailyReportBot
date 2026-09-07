@@ -1,5 +1,5 @@
 [Unit]
-Description=Telegram to DingTalk Forwarder
+Description=Telegram to DingTalk Reporter
 After=network-online.target
 Wants=network-online.target
 
@@ -8,7 +8,7 @@ Type=oneshot
 WorkingDirectory=/opt/dailybot
 EnvironmentFile=-/etc/telegram-dingtalk-forwarder.env
 EnvironmentFile=-/opt/dailybot/.env
-ExecStart=/opt/dailybot/.venv/bin/python -m dailybot.forwarder
+ExecStart=/opt/dailybot/.venv/bin/python -m dailybot.telegram_reporter
 StandardOutput=journal
 StandardError=journal
 

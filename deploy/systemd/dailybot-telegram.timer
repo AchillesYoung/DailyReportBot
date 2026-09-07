@@ -1,5 +1,5 @@
 [Unit]
-Description=Telegram to DingTalk Forwarder (Hourly)
+Description=Telegram to DingTalk Reporter (Hourly)
 
 [Timer]
 OnCalendar=*-*-* *:00:00
