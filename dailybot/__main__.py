@@ -77,7 +77,7 @@ def main(argv: list[str] | None = None) -> int:
         print(text)
         return 0
 
-    # 5. 推送（webhook 未配置或推送失败 → 退出码 1，CI 标红）
+    # 5. 推送（webhook 未配置或推送失败 → 退出码 1）
     webhook_url = os.environ.get("DINGTALK_WEBHOOK_URL")
     secret = os.environ.get("DINGTALK_SECRET") or None
     if not webhook_url:
@@ -93,7 +93,7 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         dingtalk.send_markdown(webhook_url, title, text, secret=secret)
-    except RuntimeError as exc:
+    except Exception as exc:
         print(str(exc), file=sys.stderr)
         return 1
 

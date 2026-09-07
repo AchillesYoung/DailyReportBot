@@ -1,0 +1,12 @@
+[Unit]
+Description=Telegram to DingTalk Forwarder (Hourly)
+
+[Timer]
+OnCalendar=*-*-* *:00:00
+Persistent=true
+AccuracySec=1min
+RandomizedDelaySec=0
+Unit=dailybot-forwarder.service
+
+[Install]
+WantedBy=timers.target

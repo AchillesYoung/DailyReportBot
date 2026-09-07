@@ -1,0 +1,12 @@
+[Unit]
+Description=AI RSS Daily Report - Evening (Beijing 20:00)
+
+[Timer]
+OnCalendar=*-*-* 20:00:00
+Persistent=true
+AccuracySec=1min
+RandomizedDelaySec=0
+Unit=dailybot-evening.service
+
+[Install]
+WantedBy=timers.target

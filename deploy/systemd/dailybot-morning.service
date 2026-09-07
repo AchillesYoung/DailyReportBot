@@ -1,0 +1,15 @@
+[Unit]
+Description=AI RSS Daily Report (Morning)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/dailybot
+EnvironmentFile=/opt/dailybot/.env
+ExecStart=/opt/dailybot/.venv/bin/python -m dailybot --edition morning
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
