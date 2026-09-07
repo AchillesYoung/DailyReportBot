@@ -1,11 +1,11 @@
 # AI 行业资讯钉钉自动化日报系统
 
-单一代码库，两个业务，同一个钉钉机器人：
+两个数据源（RSS + Telegram），统一推送钉钉：
 
-| 业务 | 频率 | 功能 |
+| 入口 | 频率 | 数据源 |
 |---|---|---|
-| **dailybot** | 每天 2 次（北京 09:00 / 20:00） | RSS 资讯聚合 → 排版 → 推送 |
-| **forwarder** | 每小时 1 次 | Telegram 公开频道 `@aiwizz` 新消息 → 推送 |
+| `dailybot.rss` | 每天 2 次（北京 09:00 / 20:00） | RSS 资讯聚合 |
+| `dailybot.telegram` | 每小时 1 次 | Telegram `@aiwizz` 频道 |
 
 ## 快速开始（VPS 部署）
 
@@ -47,7 +47,7 @@ sudo cp deploy/systemd/*.timer /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable --now dailybot-morning.timer
 sudo systemctl enable --now dailybot-evening.timer
-sudo systemctl enable --now dailybot-forwarder.timer
+sudo systemctl enable --now dailybot-telegram.timer
 
 # 查看状态
 systemctl list-timers dailybot-*
@@ -60,7 +60,7 @@ systemctl list-timers dailybot-*
 systemctl start dailybot-morning.service
 
 # 手动跑一次转发
-systemctl start dailybot-forwarder.service
+systemctl start dailybot-telegram.service
 
 # 看日志
 journalctl -u dailybot-morning.service -f
@@ -118,7 +118,7 @@ export DINGTALK_SECRET="..."
 .venv/bin/python -m dailybot --edition evening
 
 # forwarder 转发：真实推送
-.venv/bin/python -m dailybot.forwarder
+.venv/bin/python -m dailybot.telegram_reporter
 
 # 测试
 .venv/bin/python -m pytest tests/ -q
@@ -128,25 +128,21 @@ export DINGTALK_SECRET="..."
 
 ```
 dailybot/
-├── collector.py          # RSS 抓取（串行、窗口过滤、单源容错）
-├── reminders.py          # 提醒规则匹配（daily/weekly × 北京时间）
-├── briefing.py           # 日报 Markdown 排版（纯函数）
-├── dingtalk.py           # 兼容层，复用 shared
-├── shared/
-│   └── dingtalk.py       # 统一推送：加签、发送、错误处理
-├── forwarder/
-│   ├── channel.py        # Telegram 公开页 HTML 解析
-│   ├── formatter.py      # Telegram 消息 → 钉钉 Markdown（长文拆段）
-│   ├── models.py         # ChannelPost 数据模型
-│   ├── state.py          # 原子状态读写（防重）
-│   └── __main__.py       # 转发入口
-└── __main__.py           # 日报入口
+├── rss_collector.py       # RSS 抓取（串行、窗口过滤、单源容错）
+├── rss_briefing.py        # 日报 Markdown 排版（纯函数）
+├── rss_reminders.py       # 提醒规则匹配（daily/weekly × 北京时间）
+├── telegram_channel.py    # Telegram 公开页 HTML 解析
+├── telegram_formatter.py  # Telegram 消息 → 钉钉 Markdown（长文拆段）
+├── telegram_models.py     # ChannelPost 数据模型
+├── telegram_state.py      # 原子状态读写（防重）
+├── telegram_reporter.py   # Telegram 转发入口
+├── dingtalk.py            # 统一推送层（加签、发送、错误处理）
+├── config.py              # 统一配置读取（兼容新旧变量名）
+├── __main__.py            # 日报入口
+└── __init__.py
 
-deploy/
-├── dailybot.env.example  # 环境变量样例
-└── systemd/              # 4 个 timer + 4 个 service
-
-tests/                    # pytest，40 个用例
+tests/                     # pytest，43 个用例
+deploy/systemd/            # VPS 定时器
 ```
 
 ## 行为说明
