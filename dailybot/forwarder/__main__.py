@@ -33,9 +33,15 @@ class Config:
 
     @classmethod
     def from_env(cls):
-        webhook = os.environ.get("DINGTALK_WEBHOOK_URL", "").strip()
+        # 兼容旧变量名 DINGTALK_WEBHOOK，优先用新名 DINGTALK_WEBHOOK_URL
+        webhook = (
+            os.environ.get("DINGTALK_WEBHOOK_URL")
+            or os.environ.get("DINGTALK_WEBHOOK", "")
+        ).strip()
         if not webhook:
-            raise ValueError("DINGTALK_WEBHOOK_URL is required")
+            raise ValueError(
+                "DINGTALK_WEBHOOK_URL or DINGTALK_WEBHOOK is required"
+            )
         return cls(
             webhook=webhook,
             secret=os.environ.get("DINGTALK_SECRET", "").strip(),

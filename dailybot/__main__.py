@@ -78,11 +78,14 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     # 5. 推送（webhook 未配置或推送失败 → 退出码 1）
-    webhook_url = os.environ.get("DINGTALK_WEBHOOK_URL")
+    # 兼容旧变量名 DINGTALK_WEBHOOK，优先用新名 DINGTALK_WEBHOOK_URL
+    webhook_url = os.environ.get("DINGTALK_WEBHOOK_URL") or os.environ.get(
+        "DINGTALK_WEBHOOK"
+    )
     secret = os.environ.get("DINGTALK_SECRET") or None
     if not webhook_url:
         print(
-            "未配置 DINGTALK_WEBHOOK_URL 环境变量，无法推送",
+            "未配置 DINGTALK_WEBHOOK_URL 或 DINGTALK_WEBHOOK 环境变量，无法推送",
             file=sys.stderr,
         )
         return 1
