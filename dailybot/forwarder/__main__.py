@@ -3,14 +3,12 @@
 from __future__ import annotations
 
 import logging
-import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, List
 
-import requests
-
 from ..shared import dingtalk
+from ..shared.config import DingTalkCredentials, get_dingtalk_credentials
 from .channel import parse_posts
 from .formatter import build_markdown_parts
 from .models import ChannelPost
@@ -19,35 +17,39 @@ from .state import load_last_id, save_last_id
 LOGGER = logging.getLogger(__name__)
 
 
+def preview_url(channel: str) -> str:
+    """Telegram 频道公开预览页 URL。"""
+    return f"https://t.me/s/{channel.lstrip('@')}"
+
+
 @dataclass(frozen=True)
-class Config:
+class ForwarderConfig:
+    """转发配置值对象。"""
+
     webhook: str
     secret: str = ""
     channel: str = "aiwizz"
     state_file: Path = Path("state.json")
     request_timeout: int = 15
+    report_title: str = "Wizz AI 日报"
 
     @property
     def preview_url(self) -> str:
-        return f"https://t.me/s/{self.channel.lstrip('@')}"
+        return preview_url(self.channel)
 
-    @classmethod
-    def from_env(cls):
-        # 兼容旧变量名 DINGTALK_WEBHOOK，优先用新名 DINGTALK_WEBHOOK_URL
-        webhook = (
-            os.environ.get("DINGTALK_WEBHOOK_URL")
-            or os.environ.get("DINGTALK_WEBHOOK", "")
-        ).strip()
-        if not webhook:
-            raise ValueError(
-                "DINGTALK_WEBHOOK_URL or DINGTALK_WEBHOOK is required"
-            )
-        return cls(
-            webhook=webhook,
-            secret=os.environ.get("DINGTALK_SECRET", "").strip(),
-            channel=os.environ.get("TELEGRAM_CHANNEL", "aiwizz").strip().lstrip("@"),
-            state_file=Path(os.environ.get("FORWARDER_STATE_FILE", "state.json")),
-        )
+
+def load_forwarder_config(env: dict | None = None) -> ForwarderConfig:
+    """从环境变量构建配置（职责与值对象分离）。"""
+    import os
+    env = env or os.environ
+    creds = get_dingtalk_credentials(env)
+    return ForwarderConfig(
+        webhook=creds.webhook,
+        secret=creds.secret,
+        channel=env.get("TELEGRAM_CHANNEL", "aiwizz").strip().lstrip("@"),
+        state_file=Path(env.get("FORWARDER_STATE_FILE", "state.json")),
+        report_title=env.get("FORWARDER_REPORT_TITLE", "Wizz AI 日报").strip(),
+    )
 
 
 @dataclass(frozen=True)
@@ -56,7 +58,8 @@ class RunResult:
     baseline_initialized: bool = False
 
 
-def fetch_public_posts(config: Config, session=None) -> List[ChannelPost]:
+def fetch_public_posts(config: ForwarderConfig, session=None) -> List[ChannelPost]:
+    import requests
     http = session or requests.Session()
     response = http.get(
         config.preview_url,
@@ -68,9 +71,9 @@ def fetch_public_posts(config: Config, session=None) -> List[ChannelPost]:
 
 
 def run_once(
-    config: Config,
+    config: ForwarderConfig,
     fetcher: Callable[[], List[ChannelPost]],
-    sender: Callable[[str, str, str], None],
+    sender: Callable[[str, str], None],
 ) -> RunResult:
     posts = sorted(fetcher(), key=lambda item: item.id)
     last_id = load_last_id(config.state_file)
@@ -85,9 +88,9 @@ def run_once(
     for item in posts:
         if item.id <= last_id:
             continue
-        parts = build_markdown_parts(item)
+        parts = build_markdown_parts(item, header=f"### {config.report_title}")
         for part in parts:
-            sender(config.webhook, f"Wizz AI 日报 #{item.id}", part, config.secret)
+            sender(f"{config.report_title} #{item.id}", part)
         save_last_id(config.state_file, item.id)
         last_id = item.id
         sent_count += 1
@@ -100,11 +103,12 @@ def main() -> int:
         level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s"
     )
     try:
-        config = Config.from_env()
+        config = load_forwarder_config()
+        client = dingtalk.DingTalkClient(config.webhook, config.secret)
         result = run_once(
             config,
             fetcher=lambda: fetch_public_posts(config),
-            sender=dingtalk.send_markdown,
+            sender=client.send_markdown,
         )
     except Exception as error:
         LOGGER.error("Forwarding run failed: %s", error)

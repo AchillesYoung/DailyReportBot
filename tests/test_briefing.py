@@ -80,6 +80,22 @@ def test_char_budget_truncation_keeps_reminders_and_footer():
     assert "未展示" in text
 
 
+def test_char_budget_removes_only_enough_entries():
+    """回归：截断应该砍到达标为止，而不是砍光所有条目。"""
+    entries = [
+        Entry(title=f"标题{i}" + "字" * 200, link=f"https://example.com/{i}", published=NOW)
+        for i in range(10)
+    ]
+    result = _result([("海外", entries)])
+    text = briefing.render(
+        result, ["站会"], "morning", NOW, max_total_entries=10, max_chars=800
+    )
+    # 应保留部分条目，而不是全部砍光
+    kept_count = text.count("- [标题")
+    assert 0 < kept_count < 10
+    assert f"还有 {10 - kept_count} 条未展示" in text
+
+
 def test_only_dingtalk_markdown_subset():
     entries = [_entry(1)]
     result = _result([("海外", entries)])

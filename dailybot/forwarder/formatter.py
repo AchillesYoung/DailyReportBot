@@ -67,20 +67,42 @@ def _split_text(text: str, limit: int) -> List[str]:
     return chunks
 
 
-def build_markdown_parts(post: ChannelPost, max_chars: int = 15000) -> List[str]:
-    """把一条 Telegram 消息渲染为钉钉 markdown 分段列表。"""
+def build_markdown_parts(
+    post: ChannelPost,
+    max_chars: int = 15000,
+    header: str = "### Wizz AI 日报",
+) -> List[str]:
+    """把一条 Telegram 消息渲染为钉钉 markdown 分段列表。
+
+    两遍法：先用最坏估计的 header 宽度分页，再用实际页数校验，
+    如果实际 header 更宽（页数位数增加），用真实宽度重分一次。
+    """
     suffix = f"\n\n[查看 Telegram 原文]({post.url})"
-    reserved_header = "### Wizz AI 日报（9999/9999）\n\n"
-    content_limit = max_chars - len(reserved_header) - len(suffix)
-    chunks = _split_text(
-        _escape_markdown(_format_report_text(post.text)), content_limit
-    )
+    escaped = _escape_markdown(_format_report_text(post.text))
+
+    # 第一遍：用最坏估计的 header 宽度分页（假设页数 ≤ 4 位）
+    worst_header = f"{header}（9999/9999）\n\n"
+    content_limit = max_chars - len(worst_header) - len(suffix)
+    if content_limit < 1:
+        raise ValueError("max_chars is too small for the required original link")
+    chunks = _split_text(escaped, content_limit)
+
+    # 第二遍：用实际页数校验 header 宽度
     total = len(chunks)
+    real_header = f"{header}（{total}/{total}）\n\n" if total > 1 else f"{header}\n\n"
+    real_limit = max_chars - len(real_header) - len(suffix)
+    if real_limit < 1:
+        raise ValueError("max_chars is too small for the required original link")
+    if len(real_header) > len(worst_header):
+        # 实际 header 比最坏估计更宽，用真实宽度重分一次
+        chunks = _split_text(escaped, real_limit)
+        total = len(chunks)
+    real_header = f"{header}（{total}/{total}）\n\n" if total > 1 else f"{header}\n\n"
 
     parts = []
     for index, chunk in enumerate(chunks, start=1):
         marker = f"（{index}/{total}）" if total > 1 else ""
-        part = f"### Wizz AI 日报{marker}\n\n{chunk}{suffix}"
+        part = f"{header}{marker}\n\n{chunk}{suffix}"
         if len(part) > max_chars:
             raise ValueError("formatted DingTalk message exceeds max_chars")
         parts.append(part)

@@ -4,12 +4,13 @@ from __future__ import annotations
 
 import argparse
 import logging
-import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-from . import briefing, collector, dingtalk, reminders
+from . import briefing, collector, reminders
+from .shared import dingtalk
+from .shared.config import get_dingtalk_credentials
 
 #: 各推送类型的默认时间窗口（小时）。早报覆盖昨晚以来，晚报覆盖今早以来。
 DEFAULT_WINDOWS = {"morning": 13.0, "evening": 11.0}
@@ -77,17 +78,11 @@ def main(argv: list[str] | None = None) -> int:
         print(text)
         return 0
 
-    # 5. 推送（webhook 未配置或推送失败 → 退出码 1）
-    # 兼容旧变量名 DINGTALK_WEBHOOK，优先用新名 DINGTALK_WEBHOOK_URL
-    webhook_url = os.environ.get("DINGTALK_WEBHOOK_URL") or os.environ.get(
-        "DINGTALK_WEBHOOK"
-    )
-    secret = os.environ.get("DINGTALK_SECRET") or None
-    if not webhook_url:
-        print(
-            "未配置 DINGTALK_WEBHOOK_URL 或 DINGTALK_WEBHOOK 环境变量，无法推送",
-            file=sys.stderr,
-        )
+    # 5. 推送（凭证缺失或推送失败 → 退出码 1）
+    try:
+        creds = get_dingtalk_credentials()
+    except Exception as exc:
+        print(str(exc), file=sys.stderr)
         return 1
 
     edition_label = "早报" if args.edition == "morning" else "晚报"
@@ -95,7 +90,8 @@ def main(argv: list[str] | None = None) -> int:
     title = f"AI 行业{edition_label} · {beijing_now.strftime('%m月%d日')}"
 
     try:
-        dingtalk.send_markdown(webhook_url, title, text, secret=secret)
+        client = dingtalk.DingTalkClient(creds.webhook, creds.secret)
+        client.send_markdown(title, text)
     except Exception as exc:
         print(str(exc), file=sys.stderr)
         return 1

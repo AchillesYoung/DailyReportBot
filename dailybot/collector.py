@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 import logging
-import socket
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import feedparser
+import requests
 import yaml
 
 logger = logging.getLogger(__name__)
@@ -17,6 +17,8 @@ logger = logging.getLogger(__name__)
 FETCH_TIMEOUT_SECONDS = 15
 #: 每源保留条目的默认上限
 DEFAULT_MAX_ENTRIES_PER_FEED = 10
+#: HTTP 请求 User-Agent
+_USER_AGENT = "dailybot/0.1 (+https://github.com/AchillesYoung/DailyReportBot)"
 
 
 @dataclass
@@ -116,10 +118,13 @@ def fetch_feed(
 ) -> FeedResult:
     """抓取单个源并过滤窗口内条目。失败返回带 error 的 FeedResult。"""
     try:
-        parsed = feedparser.parse(
+        resp = requests.get(
             feed.url,
-            request_headers={"User-Agent": "dailybot/0.1 (+https://github.com)"},
+            headers={"User-Agent": _USER_AGENT},
+            timeout=FETCH_TIMEOUT_SECONDS,
         )
+        resp.raise_for_status()
+        parsed = feedparser.parse(resp.content)
     except Exception as exc:  # noqa: BLE001 - 任何异常都不能中断整批
         return FeedResult(source=feed.name, error=f"{type(exc).__name__}: {exc}")
 
@@ -154,7 +159,6 @@ def collect(
     max_entries_per_feed: int = DEFAULT_MAX_ENTRIES_PER_FEED,
 ) -> CollectResult:
     """串行抓取所有源，返回窗口内的条目。单源失败不中断。"""
-    socket.setdefaulttimeout(FETCH_TIMEOUT_SECONDS)
     now = now or datetime.now(timezone.utc)
     since = now - timedelta(hours=since_hours)
 

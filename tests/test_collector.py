@@ -2,14 +2,30 @@
 
 import time
 from datetime import datetime, timedelta, timezone
-
-import pytest
+from unittest.mock import MagicMock
 
 from dailybot import collector
 
 
 def _struct_time(dt: datetime) -> time.struct_time:
     return dt.utctimetuple()
+
+
+def _entry(title, link, published=None):
+    e = {"title": title, "link": link}
+    if published is not None:
+        e["published_parsed"] = _struct_time(published)
+    return e
+
+
+def _fake_entries_response(entries):
+    """构造一个 mock requests.Response，让 feedparser.parse 能解析出给定条目。"""
+    # feedparser.parse 接受 bytes / str，这里用空 HTML 让它走内部 dict 逻辑不行。
+    # 更好的方式：mock feedparser.parse 直接返回 FakeParsed。
+    resp = MagicMock()
+    resp.content = b"<html></html>"
+    resp.raise_for_status = lambda: None
+    return resp
 
 
 class FakeParsed:
@@ -24,13 +40,6 @@ class FakeParsed:
         if key == "bozo_exception":
             return self._bozo_exception
         return default
-
-
-def _entry(title, link, published=None):
-    e = {"title": title, "link": link}
-    if published is not None:
-        e["published_parsed"] = _struct_time(published)
-    return e
 
 
 NOW = datetime(2026, 9, 1, 4, 0, 0, tzinfo=timezone.utc)  # 北京 12:00
@@ -59,15 +68,26 @@ groups:
     assert [f.name for f in groups[0].feeds] == ["Good"]
 
 
+def _patch_fetch(monkeypatch, entries):
+    """Mock requests.get + feedparser.parse 以返回给定条目列表。"""
+    fake_parsed = FakeParsed(entries)
+    monkeypatch.setattr(
+        collector.requests, "get",
+        lambda *a, **k: _fake_entries_response(entries),
+    )
+    monkeypatch.setattr(
+        collector.feedparser, "parse",
+        lambda *a, **k: fake_parsed,
+    )
+
+
 def test_window_filtering(monkeypatch):
     entries = [
         _entry("新1", "https://a/1", NOW - timedelta(hours=1)),
         _entry("新2", "https://a/2", NOW - timedelta(hours=11)),
         _entry("旧", "https://a/3", NOW - timedelta(hours=25)),
     ]
-    monkeypatch.setattr(
-        collector.feedparser, "parse", lambda *a, **k: FakeParsed(entries)
-    )
+    _patch_fetch(monkeypatch, entries)
     feed = collector.FeedConfig(name="S", url="https://x")
     result = collector.fetch_feed(feed, SINCE)
     assert result.error is None
@@ -76,21 +96,22 @@ def test_window_filtering(monkeypatch):
 
 def test_entries_without_timestamp_are_kept(monkeypatch):
     entries = [_entry("无时间", "https://a/1", None)]
-    monkeypatch.setattr(
-        collector.feedparser, "parse", lambda *a, **k: FakeParsed(entries)
-    )
+    _patch_fetch(monkeypatch, entries)
     result = collector.fetch_feed(collector.FeedConfig("S", "https://x"), SINCE)
     assert [e.title for e in result.entries] == ["无时间"]
     assert result.entries[0].published is None
 
 
 def test_feed_failure_tolerated(monkeypatch):
-    def fake_parse(url, **kwargs):
+    def fake_get(url, **kwargs):
         if "bad" in url:
             raise ConnectionError("boom")
-        return FakeParsed([_entry("好", "https://a/1", NOW - timedelta(hours=1))])
+        return _fake_entries_response([])
 
-    monkeypatch.setattr(collector.feedparser, "parse", fake_parse)
+    monkeypatch.setattr(collector.requests, "get", fake_get)
+    good_parsed = FakeParsed([_entry("好", "https://a/1", NOW - timedelta(hours=1))])
+    monkeypatch.setattr(collector.feedparser, "parse", lambda *a, **k: good_parsed)
+
     configs = [
         collector.GroupConfig(
             name="G",
@@ -109,8 +130,11 @@ def test_feed_failure_tolerated(monkeypatch):
 
 def test_bozo_without_entries_is_failure(monkeypatch):
     monkeypatch.setattr(
-        collector.feedparser,
-        "parse",
+        collector.requests, "get",
+        lambda *a, **k: _fake_entries_response([]),
+    )
+    monkeypatch.setattr(
+        collector.feedparser, "parse",
         lambda *a, **k: FakeParsed([], bozo=True, bozo_exception="xml broken"),
     )
     result = collector.fetch_feed(collector.FeedConfig("S", "https://x"), SINCE)
@@ -122,9 +146,7 @@ def test_per_feed_max_entries(monkeypatch):
         _entry(f"E{i}", f"https://a/{i}", NOW - timedelta(hours=1))
         for i in range(15)
     ]
-    monkeypatch.setattr(
-        collector.feedparser, "parse", lambda *a, **k: FakeParsed(entries)
-    )
+    _patch_fetch(monkeypatch, entries)
     result = collector.fetch_feed(
         collector.FeedConfig("S", "https://x"), SINCE, max_entries=10
     )
@@ -132,12 +154,9 @@ def test_per_feed_max_entries(monkeypatch):
 
 
 def test_collect_totals(monkeypatch):
-    monkeypatch.setattr(
-        collector.feedparser,
-        "parse",
-        lambda *a, **k: FakeParsed(
-            [_entry("X", "https://a/1", NOW - timedelta(hours=1))]
-        ),
+    _patch_fetch(
+        monkeypatch,
+        [_entry("X", "https://a/1", NOW - timedelta(hours=1))],
     )
     configs = [
         collector.GroupConfig(

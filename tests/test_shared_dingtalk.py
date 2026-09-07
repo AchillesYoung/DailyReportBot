@@ -1,11 +1,12 @@
-"""shared.dingtalk 测试：统一推送层。"""
+"""shared.dingtalk 测试：DingTalkClient 类。"""
 
-import urllib.parse
+import time
 
 import pytest
 import requests
 
 from dailybot.shared import dingtalk
+from dailybot.shared.dingtalk import DingTalkClient, DingTalkError
 
 
 class FakeResponse:
@@ -20,37 +21,53 @@ class FakeResponse:
         return self._body
 
 
-def test_send_success(monkeypatch):
-    captured = {}
+class TestDingTalkClient:
+    def test_send_success(self, monkeypatch):
+        captured = {}
 
-    def fake_post(url, json, timeout):
-        captured["url"] = url
-        captured["json"] = json
-        return FakeResponse()
+        def fake_post(url, json, timeout):
+            captured["url"] = url
+            captured["json"] = json
+            return FakeResponse()
 
-    monkeypatch.setattr(requests, "post", fake_post)
-    dingtalk.send_markdown("https://oapi.dingtalk.com/robot/send?access_token=x", "标题", "正文")
-    assert captured["json"]["msgtype"] == "markdown"
-    assert captured["json"]["markdown"]["title"] == "标题"
+        client = DingTalkClient("https://oapi.dingtalk.com/robot/send?access_token=x", "SECtest")
+        client._session.post = fake_post
+        client.send_markdown("标题", "正文")
+        assert captured["json"]["msgtype"] == "markdown"
+        assert captured["json"]["markdown"]["title"] == "标题"
 
+    def test_errcode_nonzero_raises(self, monkeypatch):
+        def fake_post(url, json, timeout):
+            return FakeResponse(body={"errcode": 310000, "errmsg": "sign error"})
 
-def test_errcode_nonzero_raises(monkeypatch):
-    monkeypatch.setattr(
-        requests,
-        "post",
-        lambda *a, **k: FakeResponse(body={"errcode": 310000, "errmsg": "sign error"}),
-    )
-    with pytest.raises(dingtalk.DingTalkError, match="310000"):
-        dingtalk.send_markdown("https://x", "t", "text")
+        client = DingTalkClient("https://x")
+        client._session.post = fake_post
+        with pytest.raises(DingTalkError, match="310000"):
+            client.send_markdown("t", "text")
 
+    def test_signed_url_contains_timestamp_and_sign(self):
+        url = dingtalk.build_signed_url(
+            "https://oapi.dingtalk.com/robot/send?access_token=x",
+            "SEC123456",
+            1234567890123,
+        )
+        import urllib.parse
+        query = urllib.parse.parse_qs(urllib.parse.urlparse(url).query)
+        assert query["timestamp"] == ["1234567890123"]
+        assert "sign" in query
 
-def test_signed_url_contains_timestamp_and_sign():
-    url = dingtalk.build_signed_url(
-        "https://oapi.dingtalk.com/robot/send?access_token=x",
-        "SEC123456",
-        1234567890123,
-    )
-    query = urllib.parse.parse_qs(urllib.parse.urlparse(url).query)
-    assert query["timestamp"] == ["1234567890123"]
-    assert "sign" in query
-    assert query["sign"][0]
+    def test_injectable_clock(self, monkeypatch):
+        captured = {}
+
+        def fake_post(url, json, timeout):
+            captured["url"] = url
+            return FakeResponse()
+
+        client = DingTalkClient(
+            "https://oapi.dingtalk.com/robot/send?access_token=x",
+            secret="SECtest",
+            clock_ms=lambda: 42,
+        )
+        client._session.post = fake_post
+        client.send_markdown("t", "text")
+        assert "timestamp=42" in captured["url"]

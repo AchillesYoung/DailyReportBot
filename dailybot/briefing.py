@@ -102,30 +102,31 @@ def render(
         lines.append(footer)
         return lines
 
-    def assemble(body: list[str]) -> str:
+    def assemble(body: list[str], omitted_count: int) -> str:
         parts = [f"# {title}", ""]
         parts.extend(body)
         parts.extend(reminder_lines)
-        parts.extend(build_footer(omitted))
+        parts.extend(build_footer(omitted_count))
         return "\n".join(parts)
 
-    text = assemble(body_lines)
+    text = assemble(body_lines, omitted)
 
-    # 字节预算：超限时从最旧的条目开始砍（保持从新到旧的展示顺序不变，
-    # 逐条移除资讯行直到长度达标；提醒与尾注始终保留）
+    # 字节预算：超限时从资讯行末尾（最旧）开始砍，
+    # 每砍一条重新计算总长，直到达标；提醒与尾注始终保留。
     if len(text) > max_chars:
         entry_indices = [
             i for i, line in enumerate(body_lines) if line.startswith("- [")
         ]
-        extra_omitted = 0
+        removed = 0
         for i in reversed(entry_indices):
+            body_lines[i] = ""
+            removed += 1
+            omitted += 1
+            text = assemble([l for l in body_lines if l != ""], omitted)
             if len(text) <= max_chars:
                 break
-            body_lines[i] = ""
-            extra_omitted += 1
-            omitted += 1
         body_lines = [line for line in body_lines if line != ""]
-        if extra_omitted:
-            text = assemble(body_lines)
+        if removed:
+            text = assemble(body_lines, omitted)
 
     return text

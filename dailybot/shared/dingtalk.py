@@ -11,13 +11,13 @@ import hmac
 import logging
 import time
 import urllib.parse
-from typing import Optional
+from typing import Callable
 
 import requests
 
 logger = logging.getLogger(__name__)
 
-REQUEST_TIMEOUT_SECONDS = 15
+DEFAULT_TIMEOUT = 15
 
 
 class DingTalkError(RuntimeError):
@@ -41,42 +41,58 @@ def build_signed_url(webhook_url: str, secret: str, timestamp_ms: int) -> str:
     return f"{webhook_url}{sep}timestamp={timestamp_ms}&sign={sign}"
 
 
-def send_markdown(
-    webhook_url: str,
-    title: str,
-    text: str,
-    secret: str | None = None,
-) -> None:
-    """发送单条 markdown 消息到钉钉群机器人。
+class DingTalkClient:
+    """钉钉群机器人客户端。
 
-    任何失败（网络错误 / HTTP 非 2xx / errcode 非 0）都抛出 DingTalkError。
+    session / clock_ms 可注入，方便测试和连接池复用。
     """
-    timestamp_ms = round(time.time() * 1000)
-    url = build_signed_url(webhook_url, secret or "", timestamp_ms)
-    payload = {
-        "msgtype": "markdown",
-        "markdown": {"title": title, "text": text},
-    }
 
-    try:
-        resp = requests.post(url, json=payload, timeout=REQUEST_TIMEOUT_SECONDS)
-    except requests.RequestException as exc:
-        raise DingTalkError(f"钉钉 webhook 网络请求失败: {exc}") from exc
+    def __init__(
+        self,
+        webhook: str,
+        secret: str = "",
+        session: requests.Session | None = None,
+        clock_ms: Callable[[], int] | None = None,
+        timeout: int = DEFAULT_TIMEOUT,
+    ):
+        self._webhook = webhook
+        self._secret = secret
+        self._session = session or requests.Session()
+        self._clock = clock_ms or (lambda: round(time.time() * 1000))
+        self._timeout = timeout
 
-    if resp.status_code != 200:
-        raise DingTalkError(
-            f"钉钉 webhook 返回 HTTP {resp.status_code}: {resp.text[:200]}"
-        )
+    def send_markdown(self, title: str, text: str) -> None:
+        """发送 markdown 消息。任何失败都抛出 DingTalkError。"""
+        timestamp_ms = self._clock()
+        url = build_signed_url(self._webhook, self._secret, timestamp_ms)
+        payload = {
+            "msgtype": "markdown",
+            "markdown": {"title": title, "text": text},
+        }
 
-    try:
-        body = resp.json()
-    except ValueError as exc:
-        raise DingTalkError(f"钉钉 webhook 返回非 JSON: {resp.text[:200]}") from exc
+        try:
+            resp = self._session.post(
+                url, json=payload, timeout=self._timeout
+            )
+        except requests.RequestException as exc:
+            raise DingTalkError(f"钉钉 webhook 网络请求失败: {exc}") from exc
 
-    errcode = body.get("errcode")
-    if errcode != 0:
-        raise DingTalkError(
-            f"钉钉推送失败: errcode={errcode}, errmsg={body.get('errmsg')}"
-        )
+        if resp.status_code != 200:
+            raise DingTalkError(
+                f"钉钉 webhook 返回 HTTP {resp.status_code}: {resp.text[:200]}"
+            )
 
-    logger.info("钉钉推送成功（title=%s）", title)
+        try:
+            body = resp.json()
+        except ValueError as exc:
+            raise DingTalkError(
+                f"钉钉 webhook 返回非 JSON: {resp.text[:200]}"
+            ) from exc
+
+        errcode = body.get("errcode")
+        if errcode != 0:
+            raise DingTalkError(
+                f"钉钉推送失败: errcode={errcode}, errmsg={body.get('errmsg')}"
+            )
+
+        logger.info("钉钉推送成功（title=%s）", title)

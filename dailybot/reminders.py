@@ -15,6 +15,14 @@ BEIJING_TZ = pytz.timezone("Asia/Shanghai")
 _WEEKDAY_KEYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
 
 
+@dataclass(frozen=True)
+class _ScheduleContext:
+    """调度判定上下文（北京时间）。"""
+
+    weekday_key: str
+    edition: str
+
+
 @dataclass
 class ReminderRule:
     """一条提醒规则。"""
@@ -24,6 +32,29 @@ class ReminderRule:
     days: list[str] = field(default_factory=list)  # weekly 时生效，mon..sun
     editions: list[str] = field(default_factory=list)  # 空 = 早晚都带
 
+    def matches_edition(self, edition: str) -> bool:
+        """是否匹配当前推送类型。"""
+        return not self.editions or edition in self.editions
+
+
+def _match_daily(rule: ReminderRule, ctx: _ScheduleContext) -> bool:
+    return True
+
+
+def _match_weekly(rule: ReminderRule, ctx: _ScheduleContext) -> bool:
+    return ctx.weekday_key in rule.days
+
+
+def _never(rule: ReminderRule, ctx: _ScheduleContext) -> bool:
+    return False
+
+
+# 策略注册表：新增调度类型只需扩展此字典，due_today 不动
+_SCHEDULERS: dict[str, callable] = {
+    "daily": _match_daily,
+    "weekly": _match_weekly,
+}
+
 
 def load_reminder_rules(path: str | Path) -> list[ReminderRule]:
     """加载 reminders.yaml，跳过缺少 text 或 schedule 非法的规则。"""
@@ -32,7 +63,7 @@ def load_reminder_rules(path: str | Path) -> list[ReminderRule]:
     for raw in data.get("reminders") or []:
         text = (raw.get("text") or "").strip()
         schedule = (raw.get("schedule") or "daily").strip().lower()
-        if not text or schedule not in ("daily", "weekly"):
+        if not text or schedule not in _SCHEDULERS:
             continue
         days = [str(d).strip().lower() for d in (raw.get("days") or [])]
         editions = [str(e).strip().lower() for e in (raw.get("editions") or [])]
@@ -50,15 +81,14 @@ def due_today(
     星期几按北京时间判定。edition 为 "morning" 或 "evening"。
     """
     beijing_now = now.astimezone(BEIJING_TZ)
-    weekday_key = _WEEKDAY_KEYS[beijing_now.weekday()]
-    edition = edition.lower()
+    ctx = _ScheduleContext(
+        weekday_key=_WEEKDAY_KEYS[beijing_now.weekday()],
+        edition=edition.lower(),
+    )
 
-    due: list[str] = []
-    for rule in rules:
-        if rule.editions and edition not in rule.editions:
-            continue
-        if rule.schedule == "daily":
-            due.append(rule.text)
-        elif rule.schedule == "weekly" and weekday_key in rule.days:
-            due.append(rule.text)
-    return due
+    return [
+        r.text
+        for r in rules
+        if r.matches_edition(ctx.edition)
+        and _SCHEDULERS.get(r.schedule, _never)(r, ctx)
+    ]
