@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from dailybot.forwarder.state import load_last_id, save_last_id
+from dailybot.telegram_state import load_last_id, save_last_id
 
 
 def test_load_missing():

@@ -8,7 +8,7 @@ from __future__ import annotations
 import re
 from typing import List
 
-from .models import ChannelPost
+from .telegram_models import ChannelPost
 
 
 def _escape_markdown(text: str) -> str:

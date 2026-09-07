@@ -3,16 +3,17 @@
 from __future__ import annotations
 
 import logging
+import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, List
 
-from ..shared import dingtalk
-from ..shared.config import DingTalkCredentials, get_dingtalk_credentials
-from .channel import parse_posts
-from .formatter import build_markdown_parts
-from .models import ChannelPost
-from .state import load_last_id, save_last_id
+from . import dingtalk
+from .config import DingTalkCredentials, get_dingtalk_credentials
+from .telegram_channel import parse_posts
+from .telegram_formatter import build_markdown_parts
+from .telegram_models import ChannelPost
+from .telegram_state import load_last_id, save_last_id
 
 LOGGER = logging.getLogger(__name__)
 
@@ -40,7 +41,6 @@ class ForwarderConfig:
 
 def load_forwarder_config(env: dict | None = None) -> ForwarderConfig:
     """从环境变量构建配置（职责与值对象分离）。"""
-    import os
     env = env or os.environ
     creds = get_dingtalk_credentials(env)
     return ForwarderConfig(

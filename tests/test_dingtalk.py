@@ -5,8 +5,8 @@ import time
 import pytest
 import requests
 
-from dailybot.shared import dingtalk
-from dailybot.shared.dingtalk import DingTalkClient, DingTalkError
+from dailybot import dingtalk
+from dailybot.dingtalk import DingTalkClient, DingTalkError
 
 
 class FakeResponse:

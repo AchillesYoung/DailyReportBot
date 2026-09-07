@@ -1,7 +1,7 @@
 """forwarder.formatter 测试：Markdown 排版与拆段。"""
 
-from dailybot.forwarder.formatter import build_markdown_parts
-from dailybot.forwarder.models import ChannelPost
+from dailybot.telegram_formatter import build_markdown_parts
+from dailybot.telegram_models import ChannelPost
 
 
 def _post(text, post_id=1):

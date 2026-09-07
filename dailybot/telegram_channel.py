@@ -4,7 +4,7 @@ from typing import List
 
 from bs4 import BeautifulSoup
 
-from .models import ChannelPost
+from .telegram_models import ChannelPost
 
 
 def _readable_text(element) -> str:

@@ -9,8 +9,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from . import briefing, collector, reminders
-from .shared import dingtalk
-from .shared.config import get_dingtalk_credentials
+from . import dingtalk
+from .config import get_dingtalk_credentials
 
 #: 各推送类型的默认时间窗口（小时）。早报覆盖昨晚以来，晚报覆盖今早以来。
 DEFAULT_WINDOWS = {"morning": 13.0, "evening": 11.0}

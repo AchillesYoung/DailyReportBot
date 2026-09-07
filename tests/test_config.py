@@ -2,7 +2,7 @@
 
 import pytest
 
-from dailybot.shared.config import get_dingtalk_credentials, ConfigError
+from dailybot.config import get_dingtalk_credentials, ConfigError
 
 
 def test_read_new_variable():

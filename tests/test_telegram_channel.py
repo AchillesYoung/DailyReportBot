@@ -1,6 +1,6 @@
 """forwarder.channel 测试：Telegram HTML 解析。"""
 
-from dailybot.forwarder.channel import parse_posts
+from dailybot.telegram_channel import parse_posts
 
 
 SAMPLE_HTML = """
