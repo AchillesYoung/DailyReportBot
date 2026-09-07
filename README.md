@@ -19,7 +19,13 @@ cd /opt/dailybot
 bash deploy/setup.sh
 ```
 
-`setup.sh` 自动完成：拉代码 → 建虚拟环境 → 装依赖 → 部署 systemd → 启用全部定时器。
+`setup.sh` 自动完成：
+
+1. 项目目录不存在 → `git clone`；已存在 → `git pull` 拉最新代码
+2. 虚拟环境不存在 → 创建；已存在 → 跳过
+3. `pip install -r requirements.txt` 安装/更新依赖
+4. 复制 systemd 服务文件到系统目录
+5. `daemon-reload` + `restart` 重启全部定时器（首次部署和后续更新都用同一条命令）
 
 ## 钉钉群机器人配置
 
